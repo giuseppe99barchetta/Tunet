@@ -41,7 +41,20 @@ export async function fetchPublicConfig() {
       readOnly: data.readOnly === true,
     };
     return _cachedPublicConfig;
-  } catch {
+  } catch (err) {
+    const isNetworkError =
+      err instanceof TypeError &&
+      (err.message.includes('Failed to fetch') ||
+        err.message.includes('NetworkError') ||
+        err.message.includes('ECONNREFUSED'));
+    if (isNetworkError) {
+      console.error(
+        '[PublicMode] Backend server unreachable at port 3002.' +
+          ' Ensure the Express server is running (npm run server or docker-compose up).' +
+          ' In Add-on mode, verify the container started correctly.',
+        err
+      );
+    }
     _cachedPublicConfig = false;
     return null;
   }

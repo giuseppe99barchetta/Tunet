@@ -58,7 +58,13 @@ const getStoredDeviceLabel = () => {
 
 const READ_CURRENT_FAILED = Symbol('READ_CURRENT_FAILED');
 
-export function useSettingsSync({ haUserId, contextSettersRef }) {
+/**
+ * @param {object} options
+ * @param {string|null|undefined} options.haUserId
+ * @param {React.MutableRefObject<object>} options.contextSettersRef
+ * @param {boolean} [options.isPublicMode]  — when true, all server sync is disabled
+ */
+export function useSettingsSync({ haUserId, contextSettersRef, isPublicMode = false }) {
   const deviceIdRef = useRef(getOrCreateDeviceId());
   const deviceLabelRef = useRef(getStoredDeviceLabel());
   const [enabled, setEnabled] = useState(() => {
@@ -326,7 +332,7 @@ export function useSettingsSync({ haUserId, contextSettersRef }) {
   );
 
   useEffect(() => {
-    if (!haUserId) return;
+    if (!haUserId || isPublicMode) return;
     let disposed = false;
 
     const bootstrap = async () => {
@@ -359,15 +365,15 @@ export function useSettingsSync({ haUserId, contextSettersRef }) {
   }, [haUserId, readCurrentFromServer, refreshKnownDevices, refreshHistory]);
 
   useEffect(() => {
-    if (!haUserId) return;
+    if (!haUserId || isPublicMode) return;
     const id = setInterval(() => {
       reconcileFromServer();
     }, 4000);
     return () => clearInterval(id);
-  }, [haUserId, reconcileFromServer]);
+  }, [haUserId, isPublicMode, reconcileFromServer]);
 
   useEffect(() => {
-    if (!haUserId || typeof globalThis.window === 'undefined') return undefined;
+    if (!haUserId || isPublicMode || typeof globalThis.window === 'undefined') return undefined;
 
     const handleEditDone = () => {
       queueAutoSync(true, { ignoreEnabled: true });
@@ -377,7 +383,7 @@ export function useSettingsSync({ haUserId, contextSettersRef }) {
     return () => {
       globalThis.window.removeEventListener('tunet:edit-done', handleEditDone);
     };
-  }, [haUserId, queueAutoSync]);
+  }, [haUserId, isPublicMode, queueAutoSync]);
 
   const loadCurrentFromServer = useCallback(
     async (revision) => {

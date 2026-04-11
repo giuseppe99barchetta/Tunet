@@ -220,6 +220,43 @@ describe('useConnectionSetup › auto-close onboarding', () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════
+// Auto-close onboarding in public mode (token auth)
+// ═════════════════════════════════════════════════════════════════════════
+describe('useConnectionSetup › auto-close onboarding in public mode', () => {
+  it('closes onboarding when isPublicMode becomes true with a token set', () => {
+    const props = makeProps({
+      config: { url: 'http://ha.local:8123', token: '', authMethod: 'token' },
+      isPublicMode: false,
+      showOnboarding: true,
+    });
+    const { rerender } = renderHook((p) => useConnectionSetup(p), {
+      initialProps: props,
+    });
+
+    // Simulate public mode bootstrap completing (url + token populated)
+    rerender({
+      ...props,
+      isPublicMode: true,
+      config: { url: 'http://ha.local:8123', token: 'pub-tok', authMethod: 'token' },
+    });
+
+    expect(props.setShowOnboarding).toHaveBeenCalledWith(false);
+    expect(props.setShowConfigModal).toHaveBeenCalledWith(false);
+  });
+
+  it('does not close onboarding if token is missing', () => {
+    const props = makeProps({
+      config: { url: 'http://ha.local:8123', token: '', authMethod: 'token' },
+      isPublicMode: true,
+      showOnboarding: true,
+    });
+    renderHook(() => useConnectionSetup(props));
+
+    expect(props.setShowOnboarding).not.toHaveBeenCalled();
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════
 // Re-open onboarding when auth is lost
 // ═════════════════════════════════════════════════════════════════════════
 describe('useConnectionSetup › re-open onboarding on auth loss', () => {

@@ -38,6 +38,18 @@ export function useConnectionSetup({
     }
   }, [connected, config.authMethod, showOnboarding, setShowOnboarding, setShowConfigModal]);
 
+  // ── Close onboarding for public mode (token auth) ─────────────────────
+  // ConfigContext bootstrap sets credentials asynchronously, so showOnboarding
+  // may already be true by the time isPublicMode flips to true.  No mechanism
+  // in the OAuth auto-close above handles the token-auth path, so we do it here.
+  useEffect(() => {
+    if (isPublicMode && config.token && showOnboarding) {
+      console.log('[PublicMode] Public mode credentials ready — dismissing onboarding overlay.');
+      setShowOnboarding(false);
+      setShowConfigModal(false);
+    }
+  }, [isPublicMode, config.token, showOnboarding, setShowOnboarding, setShowConfigModal]);
+
   // ── Re-open onboarding when auth is lost ───────────────────────────────
   useEffect(() => {
     // Don't re-open during an active OAuth callback — tokens haven't been
