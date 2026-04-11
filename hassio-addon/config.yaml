@@ -23,7 +23,15 @@ options:
   data_encryption_mode: 'off'
   data_encryption_key: ''
   data_encryption_salt: ''
+  tunet_public_mode_enabled: false
+  tunet_public_ha_url: ''
+  tunet_public_ha_token: ''
+  tunet_public_read_only: false
 schema:
   data_encryption_mode: 'list(off|dual|enc_only)?'
   data_encryption_key: 'password?'
   data_encryption_salt: 'password?'
+  tunet_public_mode_enabled: 'bool?'
+  tunet_public_ha_url: 'str?'
+  tunet_public_ha_token: 'password?'
+  tunet_public_read_only: 'bool?'

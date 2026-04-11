@@ -51,6 +51,8 @@
  * @property {import('react').Dispatch<import('react').SetStateAction<string>>} setAppFont
  * @property {HomeAssistantConfig} config
  * @property {import('react').Dispatch<import('react').SetStateAction<HomeAssistantConfig>>} setConfig
+ * @property {boolean} isPublicMode
+ * @property {boolean} isReadOnly
  */
 
 /**

@@ -17,6 +17,22 @@ if bashio::config.has_value 'data_encryption_salt'; then
 	export TUNET_DATA_KEY_SALT="$(bashio::config 'data_encryption_salt')"
 fi
 
+if bashio::config.has_value 'tunet_public_mode_enabled'; then
+	export TUNET_PUBLIC_MODE_ENABLED="$(bashio::config 'tunet_public_mode_enabled')"
+fi
+
+if bashio::config.has_value 'tunet_public_ha_url'; then
+	export TUNET_PUBLIC_HA_URL="$(bashio::config 'tunet_public_ha_url')"
+fi
+
+if bashio::config.has_value 'tunet_public_ha_token'; then
+	export TUNET_PUBLIC_HA_TOKEN="$(bashio::config 'tunet_public_ha_token')"
+fi
+
+if bashio::config.has_value 'tunet_public_read_only'; then
+	export TUNET_PUBLIC_READ_ONLY="$(bashio::config 'tunet_public_read_only')"
+fi
+
 if [ "${TUNET_ENCRYPTION_MODE}" = "dual" ] || [ "${TUNET_ENCRYPTION_MODE}" = "enc_only" ]; then
 	if [ -z "${TUNET_DATA_KEY}" ]; then
 		bashio::log.fatal "data_encryption_key is required when data_encryption_mode is '${TUNET_ENCRYPTION_MODE}'"
