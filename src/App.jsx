@@ -82,6 +82,8 @@ export function AppContent({ showOnboarding, setShowOnboarding }) {
     unlockSettingsLock,
     config,
     setConfig,
+    isPublicMode,
+    isReadOnly,
   } = useConfig();
 
   const {
@@ -283,6 +285,7 @@ export function AppContent({ showOnboarding, setShowOnboarding }) {
     config,
     setConfig,
     connected,
+    isPublicMode,
     showOnboarding,
     setShowOnboarding,
     showConfigModal,
@@ -507,6 +510,7 @@ export function AppContent({ showOnboarding, setShowOnboarding }) {
     guardedRemoveCard,
   } = useGuardedUiActions({
     requestSettingsAccess,
+    isReadOnly,
     editMode,
     setEditMode,
     setShowAddCardModal,
@@ -615,6 +619,8 @@ export function AppContent({ showOnboarding, setShowOnboarding }) {
     authRef,
     config,
     setConfig,
+    isPublicMode,
+    isReadOnly,
     t,
     language,
     setLanguage,
@@ -791,6 +797,7 @@ export function AppContent({ showOnboarding, setShowOnboarding }) {
       guardedSetShowHeaderEditModal={guardedSetShowHeaderEditModal}
       connected={connected}
       updateCount={updateCount}
+      isReadOnly={isReadOnly}
       dashboardGridPage={dashboardGridPage}
       dashboardGridMedia={dashboardGridMedia}
       dashboardGridGrid={dashboardGridGrid}

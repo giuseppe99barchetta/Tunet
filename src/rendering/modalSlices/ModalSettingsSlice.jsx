@@ -18,7 +18,7 @@ export function ModalSettingsSlice({
   onboardingSteps,
   entityHelpers,
 }) {
-  const { entities, connected, activeUrl, config, setConfig, t, language, setLanguage } = core;
+  const { entities, connected, activeUrl, config, setConfig, isPublicMode, t, language, setLanguage } = core;
   const {
     showConfigModal,
     setShowConfigModal,
@@ -127,6 +127,7 @@ export function ModalSettingsSlice({
             testingConnection={testingConnection}
             startOAuthLogin={startOAuthLogin}
             handleOAuthLogout={handleOAuthLogout}
+            isPublicMode={isPublicMode}
             language={language}
             setLanguage={setLanguage}
             inactivityTimeout={inactivityTimeout}

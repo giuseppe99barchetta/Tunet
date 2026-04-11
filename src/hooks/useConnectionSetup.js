@@ -16,6 +16,7 @@ export function useConnectionSetup({
   config,
   setConfig,
   connected,
+  isPublicMode,
   showOnboarding,
   setShowOnboarding,
   showConfigModal,
@@ -46,13 +47,16 @@ export function useConnectionSetup({
       new URLSearchParams(window.location.search).has('auth_callback');
     if (isOAuthCallback) return;
 
+    // Public mode provides credentials via /api/public-config; no onboarding needed.
+    if (isPublicMode) return;
+
     const hasAuth = config.token || (config.authMethod === 'oauth' && hasOAuthTokens());
     if (!hasAuth && !showOnboarding && !showConfigModal) {
       setShowOnboarding(true);
       setOnboardingStep(0);
       setConfigTab('connection');
     }
-  }, [config.token, config.authMethod, showOnboarding, showConfigModal, setShowOnboarding]);
+  }, [isPublicMode, config.token, config.authMethod, showOnboarding, showConfigModal, setShowOnboarding]);
 
   // ── Connection test (long-lived token) ─────────────────────────────────
   const testConnection = async () => {
@@ -90,11 +94,11 @@ export function useConnectionSetup({
       if (typeof window !== 'undefined' && window.location.search.includes('auth_callback')) {
         window.history.replaceState(null, '', window.location.pathname);
       }
-      
+
       if (err === 5) { // 5 = ERR_INVALID_HTTPS_TO_HTTP in HAWS
-        setConnectionTestResult({ 
-          success: false, 
-          message: 'Cannot use an HTTP Home Assistant URL when accessing the dashboard via HTTPS. Please use an HTTPS URL for Home Assistant (e.g. Nabu Casa / DuckDNS), or use a Long-Lived Access Token.' 
+        setConnectionTestResult({
+          success: false,
+          message: 'Cannot use an HTTP Home Assistant URL when accessing the dashboard via HTTPS. Please use an HTTPS URL for Home Assistant (e.g. Nabu Casa / DuckDNS), or use a Long-Lived Access Token.'
         });
       } else {
         setConnectionTestResult({ success: false, message: t('system.oauth.redirectFailed') + (err ? ` (${err.message || err})` : '') });

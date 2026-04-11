@@ -55,6 +55,7 @@ export default function DashboardLayout(props) {
     guardedSetShowHeaderEditModal,
     connected,
     updateCount,
+    isReadOnly,
     dashboardGridPage,
     dashboardGridMedia,
     dashboardGridGrid,
@@ -227,6 +228,7 @@ export default function DashboardLayout(props) {
             connected={connected}
             updateCount={updateCount}
             isMobile={isMobile}
+            isReadOnly={isReadOnly}
             t={t}
           />
         </div>

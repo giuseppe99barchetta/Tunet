@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 export function useGuardedUiActions(deps) {
   const {
     requestSettingsAccess,
+    isReadOnly,
     editMode,
     setEditMode,
     setShowAddCardModal,
@@ -21,6 +22,7 @@ export function useGuardedUiActions(deps) {
       setShowEditCardModal(value);
       return;
     }
+    if (isReadOnly) return;
     requestSettingsAccess(() => {
       setShowEditCardModal(value);
     });
@@ -32,11 +34,12 @@ export function useGuardedUiActions(deps) {
         setter(false);
         return;
       }
+      if (isReadOnly) return;
       requestSettingsAccess(() => {
         setter(true);
       });
     },
-    [requestSettingsAccess]
+    [requestSettingsAccess, isReadOnly]
   );
 
   const guardedSetEditMode = useCallback(
@@ -46,11 +49,12 @@ export function useGuardedUiActions(deps) {
         setEditMode(false);
         return;
       }
+      if (isReadOnly) return;
       requestSettingsAccess(() => {
         setEditMode(true);
       });
     },
-    [editMode, requestSettingsAccess, setEditMode]
+    [editMode, requestSettingsAccess, setEditMode, isReadOnly]
   );
 
   const guardedSetShowAddCardModal = useCallback(

@@ -71,6 +71,7 @@ export default function ConfigModal({
   testingConnection,
   startOAuthLogin,
   handleOAuthLogout,
+  isPublicMode,
   themes,
   currentTheme,
   setCurrentTheme,
@@ -286,14 +287,16 @@ export default function ConfigModal({
             <Check className="h-4 w-4" />
             <span className="text-sm font-bold">{t('system.oauth.authenticated')}</span>
           </div>
-          <button
-            type="button"
-            onClick={handleOAuthLogout}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--status-error-border)] bg-[var(--status-error-bg)] py-2.5 text-sm font-bold tracking-widest text-[var(--status-error-fg)] uppercase transition-all hover:opacity-90"
-          >
-            <LogOut className="h-4 w-4" />
-            {t('system.oauth.logoutButton')}
-          </button>
+          {!isPublicMode && (
+            <button
+              type="button"
+              onClick={handleOAuthLogout}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--status-error-border)] bg-[var(--status-error-bg)] py-2.5 text-sm font-bold tracking-widest text-[var(--status-error-fg)] uppercase transition-all hover:opacity-90"
+            >
+              <LogOut className="h-4 w-4" />
+              {t('system.oauth.logoutButton')}
+            </button>
+          )}
         </div>
       );
     } else {

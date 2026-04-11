@@ -41,6 +41,8 @@ export function useAppViewModels(params) {
     authRef,
     config,
     setConfig,
+    isPublicMode,
+    isReadOnly,
     t,
     language,
     setLanguage,
@@ -260,11 +262,13 @@ export function useAppViewModels(params) {
       authRef,
       config,
       setConfig,
+      isPublicMode,
+      isReadOnly,
       t,
       language,
       setLanguage,
     }),
-    [entities, conn, activeUrl, connected, authRef, config, setConfig, t, language, setLanguage]
+    [entities, conn, activeUrl, connected, authRef, config, setConfig, isPublicMode, isReadOnly, t, language, setLanguage]
   );
 
   const modalManagerState = useMemo(

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import profilesRouter from './routes/profiles.js';
 import iconsRouter from './routes/icons.js';
 import settingsRouter from './routes/settings.js';
+import publicProfilesRouter from './routes/publicProfiles.js';
 import { createHomeAssistantAuthMiddleware } from './haAuth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -88,10 +89,36 @@ app.use((req, _res, next) => {
 app.use('/api/profiles', homeAssistantAuth, profilesRouter);
 app.use('/api/icons', iconsRouter);
 app.use('/api/settings', homeAssistantAuth, settingsRouter);
+// Public-mode routes (no HA auth required — only active when TUNET_PUBLIC_MODE_ENABLED=true)
+app.use('/api/public-profiles', publicProfilesRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', version: appVersion });
+});
+
+// Public Dashboard Mode config
+// Returns HA credentials for kiosk/wall-tablet deployments when public mode is explicitly enabled.
+// SECURITY: only active when TUNET_PUBLIC_MODE_ENABLED=true is set (opt-in).
+// The HA token is intentionally exposed to the browser — this is a documented tradeoff
+// for unattended kiosk devices. Do NOT enable on shared or internet-facing servers.
+app.get('/api/public-config', (_req, res) => {
+  if (process.env.TUNET_PUBLIC_MODE_ENABLED !== 'true') {
+    return res.status(404).json({ error: 'Not found' });
+  }
+
+  const haUrl = (process.env.TUNET_PUBLIC_HA_URL || '').trim();
+  const haToken = (process.env.TUNET_PUBLIC_HA_TOKEN || '').trim();
+
+  if (!haUrl || !haToken) {
+    return res.status(503).json({ error: 'Public mode is enabled but TUNET_PUBLIC_HA_URL or TUNET_PUBLIC_HA_TOKEN is not configured' });
+  }
+
+  return res.json({
+    haUrl,
+    haToken,
+    readOnly: process.env.TUNET_PUBLIC_READ_ONLY === 'true',
+  });
 });
 
 // Serve static frontend files in production

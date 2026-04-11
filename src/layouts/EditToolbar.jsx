@@ -19,6 +19,7 @@ export default function EditToolbar({
   connected,
   updateCount,
   isMobile,
+  isReadOnly,
   t,
 }) {
   const { pageSettings } = usePages();
@@ -34,7 +35,7 @@ export default function EditToolbar({
 
   return (
     <div className="relative flex flex-shrink-0 items-center justify-end gap-6 overflow-visible pb-2">
-      {editMode && (
+      {editMode && !isReadOnly && (
         <button
           onClick={() => setShowAddCardModal(true)}
           className="group flex items-center gap-2 rounded-full border border-transparent px-2.5 py-1.5 text-xs font-bold whitespace-nowrap text-[var(--accent-color)] transition-all duration-200 hover:border-[var(--glass-border)] hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:outline-none"
@@ -46,7 +47,7 @@ export default function EditToolbar({
         </button>
       )}
 
-      {!isMobile && (
+      {!isMobile && !isReadOnly && (
       <button
         onClick={handleToggleEdit}
         className={`group rounded-full border p-2 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:outline-none ${editMode ? 'hover: border-[var(--accent-color)] bg-[var(--accent-bg)] text-[var(--accent-color)] hover:bg-[var(--accent-bg)] hover:text-white hover:shadow-lg' : 'border-transparent text-[var(--text-secondary)] hover:border-[var(--glass-border)] hover:bg-white/10 hover:text-white'}`}
@@ -62,6 +63,7 @@ export default function EditToolbar({
       </button>
       )}
 
+      {!isReadOnly && (
       <div className="relative">
         <SettingsDropdown
           onOpenSettings={() => {
@@ -84,6 +86,7 @@ export default function EditToolbar({
           </div>
         )}
       </div>
+      )}
 
       {!connected && (
         <div

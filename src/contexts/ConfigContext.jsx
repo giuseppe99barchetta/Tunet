@@ -2,6 +2,8 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import { themes } from '../config/themes';
 import { DEFAULT_LANGUAGE, normalizeLanguage } from '../i18n';
 import { hashPin, verifyPin } from '../utils';
+import { hasOAuthTokens } from '../services/oauthStorage';
+import { fetchPublicConfig } from '../services/publicConfig';
 
 /** @typedef {import('../types/dashboard').ConfigContextValue} ConfigContextValue */
 /** @typedef {import('../types/dashboard').ConfigProviderProps} ConfigProviderProps */
@@ -208,6 +210,13 @@ export const ConfigProvider = ({ children }) => {
     return 'sans';
   });
 
+  // ── Public Dashboard Mode ──────────────────────────────────────────────
+  // Populated once on mount if no regular credentials are found, by fetching
+  // /api/public-config from the server.  Cleared when the user explicitly logs
+  // out (setConfig(..., isPublicMode: false)).
+  const [isPublicMode, setIsPublicMode] = useState(false);
+  const [isReadOnly, setIsReadOnly] = useState(false);
+
   const [config, setConfig] = useState(() => {
     if (typeof globalThis.window !== 'undefined') {
       // Ingress auto-detection: if served under /api/hassio_ingress/<token>,
@@ -265,6 +274,30 @@ export const ConfigProvider = ({ children }) => {
     }
     return { url: '', fallbackUrl: '', token: '', authMethod: 'oauth' };
   });
+
+  // Bootstrap Public Dashboard Mode when no credentials are present
+  useEffect(() => {
+    const hasTokenCred = Boolean(config.token);
+    const hasOAuthCred = config.authMethod === 'oauth' && hasOAuthTokens();
+    const hasIngress = Boolean(config.isIngress);
+    if (hasTokenCred || hasOAuthCred || hasIngress) return;
+
+    let cancelled = false;
+    fetchPublicConfig().then((publicCfg) => {
+      if (cancelled || !publicCfg) return;
+      setIsPublicMode(true);
+      setIsReadOnly(publicCfg.readOnly);
+      setConfig((prev) => ({
+        ...prev,
+        url: publicCfg.haUrl,
+        token: publicCfg.haToken,
+        authMethod: 'token',
+      }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Apply theme to DOM
   useEffect(() => {
@@ -620,6 +653,8 @@ export const ConfigProvider = ({ children }) => {
     setAppFont,
     config,
     setConfig,
+    isPublicMode,
+    isReadOnly,
   };
 
   return <ConfigContext.Provider value={value}>{children}</ConfigContext.Provider>;
