@@ -283,8 +283,13 @@ export const ConfigProvider = ({ children }) => {
     if (hasTokenCred || hasOAuthCred || hasIngress) return;
 
     let cancelled = false;
+    console.log('[PublicMode] No stored credentials found, attempting /api/public-config bootstrap');
     fetchPublicConfig().then((publicCfg) => {
+      if (!cancelled) {
+        console.log('[PublicMode] /api/public-config result:', publicCfg ? 'received' : 'not available');
+      }
       if (cancelled || !publicCfg) return;
+      console.log('[PublicMode] Activating public mode bootstrap');
       setIsPublicMode(true);
       setIsReadOnly(publicCfg.readOnly);
       setConfig((prev) => ({

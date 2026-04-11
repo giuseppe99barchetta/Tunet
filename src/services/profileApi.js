@@ -105,4 +105,20 @@ export function deleteProfile(id, _haUserId) {
   });
 }
 
+export async function fetchPublicDefaultProfile() {
+  const res = await fetch(`${API_BASE}/public-profiles/default`, {
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const error = /** @type {any} */ (new Error(body.error || `API error ${res.status}`));
+    error.status = res.status;
+    error.body = body;
+    throw error;
+  }
+
+  return res.json();
+}
+
 // ── Templates ────────────────────────────────────────────────────────

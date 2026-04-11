@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   fetchProfiles as apiFetchProfiles,
+  fetchPublicDefaultProfile as apiFetchPublicDefaultProfile,
   createProfile as apiCreateProfile,
   updateProfile as apiUpdateProfile,
   deleteProfile as apiDeleteProfile,
@@ -91,19 +92,40 @@ function normalizeImportedSnapshot(snapshotCandidate) {
   return payload;
 }
 
+const LAST_PROFILE_ID_KEY = 'last_profile_id';
+
+function readLastProfileId() {
+  try {
+    return localStorage.getItem(LAST_PROFILE_ID_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+function writeLastProfileId(profileId) {
+  try {
+    if (profileId) localStorage.setItem(LAST_PROFILE_ID_KEY, String(profileId));
+  } catch {
+    // Ignore storage write failures
+  }
+}
+
 /**
  * Hook for managing server-side profiles and templates.
  *
  * @param {object} options
  * @param {object|null} options.haUser          — HA user from HomeAssistantContext
  * @param {object}      options.contextSetters  — combined setters from PageContext + ConfigContext
+ * @param {boolean}     [options.isPublicMode]  — public dashboard mode enabled
+ * @param {boolean}     [options.connected]     — HA websocket connected
  */
-export function useProfiles({ haUser, contextSetters }) {
+export function useProfiles({ haUser, contextSetters, isPublicMode = false, connected = false }) {
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [loadSummary, setLoadSummary] = useState(null);
   const [backendAvailable, setBackendAvailable] = useState(true);
+  const [publicProfileAttempted, setPublicProfileAttempted] = useState(false);
   const contextSettersRef = useRef(contextSetters);
   contextSettersRef.current = contextSetters;
   const autoSync = useSettingsSync({ haUserId: haUser?.id, contextSettersRef });
@@ -210,11 +232,46 @@ export function useProfiles({ haUser, contextSetters }) {
     normalizedSnapshot.layout.pagesConfig = pagesConfig;
 
     applySnapshot(normalizedSnapshot, contextSettersRef.current);
+    writeLastProfileId(profile.id);
 
     if (notes.length > 0) {
       setLoadSummary(notes.join(' '));
     }
   }, []);
+
+  useEffect(() => {
+    if (!isPublicMode || !connected || publicProfileAttempted) return;
+
+    const lastProfileId = readLastProfileId();
+    if (lastProfileId) {
+      console.log('[PublicMode] Skipping default public profile fetch because last_profile_id is already set:', lastProfileId);
+      setPublicProfileAttempted(true);
+      return;
+    }
+
+    let cancelled = false;
+    setPublicProfileAttempted(true);
+    console.log('[PublicMode] No last_profile_id found; fetching /api/public-profiles/default');
+
+    apiFetchPublicDefaultProfile()
+      .then((profile) => {
+        if (cancelled || !profile?.data || typeof profile.data !== 'object') return;
+        console.log('[PublicMode] Public default profile received:', profile.id || '(no id)');
+        setProfiles((prev) => {
+          if (prev.some((p) => p.id === profile.id)) return prev;
+          return [profile, ...prev];
+        });
+        loadProfile(profile);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.warn('[PublicMode] Failed to fetch public default profile:', err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isPublicMode, connected, publicProfileAttempted, loadProfile]);
 
   const importDashboard = useCallback((snapshotCandidate) => {
     setError(null);

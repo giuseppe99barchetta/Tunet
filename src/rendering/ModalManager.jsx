@@ -17,6 +17,7 @@ export default function ModalManager({
     conn,
     activeUrl,
     connected,
+    isPublicMode,
     authRef,
     config,
     setConfig,
@@ -31,6 +32,7 @@ export default function ModalManager({
       conn={conn}
       activeUrl={activeUrl}
       connected={connected}
+      isPublicMode={isPublicMode}
       authRef={authRef}
       config={config}
       setConfig={setConfig}

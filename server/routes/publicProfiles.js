@@ -8,8 +8,7 @@
 //   TUNET_PUBLIC_DEFAULT_PROFILE_ID   — specific profile UUID to serve (takes priority)
 //   TUNET_PUBLIC_HA_USER_ID           — HA user ID; returns that user's newest profile
 //
-// If neither is configured, 404 is returned so the client falls back to
-// its locally-stored layout.
+// If neither is configured, the newest available profile is returned.
 
 import { Router } from 'express';
 import db from '../db.js';
@@ -34,6 +33,27 @@ const parseStoredProfileData = (row, context) => {
   return safeParseJson(resolvedText, {});
 };
 
+const buildFallbackDashboardData = () => ({
+  version: 1,
+  layout: {
+    pagesConfig: { header: [], pages: ['home'], home: [] },
+    cardSettings: {},
+    hiddenCards: [],
+    customNames: {},
+    customIcons: {},
+    pageSettings: {},
+    gridColumns: 4,
+    gridGapH: 20,
+    gridGapV: 20,
+    cardBorderRadius: 16,
+    headerSettings: { showTitle: true, showClock: true, showDate: true },
+    headerTitle: '',
+    headerScale: 1,
+    sectionSpacing: { headerToStatus: 16, statusToNav: 24, navToGrid: 24 },
+    statusPillsConfig: [],
+  },
+});
+
 // GET /api/public-profiles/default
 router.get('/default', (_req, res) => {
   if (process.env.TUNET_PUBLIC_MODE_ENABLED !== 'true') {
@@ -57,10 +77,24 @@ router.get('/default', (_req, res) => {
         'SELECT id, ha_user_id, name, device_label, data, data_enc, created_at, updated_at FROM profiles WHERE ha_user_id = ? ORDER BY updated_at DESC LIMIT 1'
       )
       .get(publicUserId);
+  } else {
+    profile = db
+      .prepare(
+        'SELECT id, ha_user_id, name, device_label, data, data_enc, created_at, updated_at FROM profiles ORDER BY updated_at DESC LIMIT 1'
+      )
+      .get();
   }
 
   if (!profile) {
-    return res.status(404).json({ error: 'No public default profile configured' });
+    return res.json({
+      id: 'public-default-fallback',
+      ha_user_id: null,
+      name: 'Public Default',
+      device_label: null,
+      data: buildFallbackDashboardData(),
+      created_at: null,
+      updated_at: null,
+    });
   }
 
   return res.json({

@@ -12,6 +12,7 @@ export default function ModalOrchestrator({
   conn,
   activeUrl,
   connected,
+  isPublicMode,
   authRef,
   config,
   setConfig,
@@ -148,6 +149,8 @@ export default function ModalOrchestrator({
   const profilesHook = useProfiles({
     haUser,
     contextSetters: profileContextSetters,
+    isPublicMode,
+    connected,
   });
 
   const profilesProps = {
