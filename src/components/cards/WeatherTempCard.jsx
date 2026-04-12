@@ -70,7 +70,7 @@ const WeatherTempCard = memo(/** @param {any} props */ function WeatherTempCard(
 
   const state = weatherEntity?.state;
   const info = getWeatherInfo(state, t);
-  const iconUrl = `https://cdn.jsdelivr.net/gh/basmilius/weather-icons@master/production/fill/all/${info.icon}.svg`;
+  const iconUrl = `https://cdn.jsdelivr.net/gh/basmilius/meteocons@v2.0.0/production/fill/all/${info.icon}.svg`;
 
   const tempValueRaw = tempEntity?.state ?? weatherEntity?.attributes?.temperature;
   const tempValue = parseFloat(tempValueRaw);

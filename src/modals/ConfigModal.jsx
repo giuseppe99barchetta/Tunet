@@ -1843,6 +1843,8 @@ export default function ConfigModal({
         }
       `}</style>
       <div className="flex h-full min-h-0 flex-col">
+        {/* Invisible focus anchor — wins PRIORITY_FOCUS_SELECTOR race so keyboard stays closed on mobile */}
+        <div tabIndex={0} data-autofocus className="sr-only" />
         <h2 id={resolvedTitleId} className="sr-only">
           {isOnboardingActive ? t('onboarding.title') : t('system.title')}
         </h2>
