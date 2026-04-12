@@ -215,6 +215,7 @@ export const ConfigProvider = ({ children }) => {
   // /api/public-config from the server.  Cleared when the user explicitly logs
   // out (setConfig(..., isPublicMode: false)).
   const [isPublicMode, setIsPublicMode] = useState(false);
+  const [isPublicModeBootstrapComplete, setIsPublicModeBootstrapComplete] = useState(false);
   const [isReadOnly, setIsReadOnly] = useState(false);
 
   const [config, setConfig] = useState(() => {
@@ -275,34 +276,74 @@ export const ConfigProvider = ({ children }) => {
     return { url: '', fallbackUrl: '', token: '', authMethod: 'oauth' };
   });
 
-  // Bootstrap Public Dashboard Mode when no credentials are present
+  // Bootstrap Public Dashboard Mode before any private auth/onboarding flow.
   useEffect(() => {
+    let cancelled = false;
+    fetchPublicConfig()
+      .then((publicCfg) => {
+        if (cancelled) return;
+
+        if (!publicCfg) {
+          setIsPublicModeBootstrapComplete(true);
+          return;
+        }
+
+        console.log('Public Mode Active: Bypassing authentication and loading shared dashboard.');
+        setIsPublicMode(true);
+        setIsReadOnly(publicCfg.readOnly);
+        setConfig((prev) => ({
+          ...prev,
+          url: publicCfg.haUrl,
+          fallbackUrl: '',
+          token: publicCfg.haToken,
+          authMethod: 'token',
+        }));
+        setIsPublicModeBootstrapComplete(true);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setIsPublicModeBootstrapComplete(true);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsPublicModeBootstrapComplete(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Legacy fallback bootstrap: keep behavior for sessions where public mode was
+  // not detected at startup and no local credentials exist.
+  useEffect(() => {
+    if (!isPublicModeBootstrapComplete || isPublicMode) return;
     const hasTokenCred = Boolean(config.token);
     const hasOAuthCred = config.authMethod === 'oauth' && hasOAuthTokens();
     const hasIngress = Boolean(config.isIngress);
     if (hasTokenCred || hasOAuthCred || hasIngress) return;
 
     let cancelled = false;
-    console.log('[PublicMode] No stored credentials found, attempting /api/public-config bootstrap');
     fetchPublicConfig().then((publicCfg) => {
-      if (!cancelled) {
-        console.log('[PublicMode] /api/public-config result:', publicCfg ? 'received' : 'not available');
+      if (!cancelled && publicCfg) {
+        console.log('Public Mode Active: Bypassing authentication and loading shared dashboard.');
+        setIsPublicMode(true);
+        setIsReadOnly(publicCfg.readOnly);
+        setConfig((prev) => ({
+          ...prev,
+          url: publicCfg.haUrl,
+          fallbackUrl: '',
+          token: publicCfg.haToken,
+          authMethod: 'token',
+        }));
       }
-      if (cancelled || !publicCfg) return;
-      console.log('[PublicMode] Activating public mode bootstrap');
-      setIsPublicMode(true);
-      setIsReadOnly(publicCfg.readOnly);
-      setConfig((prev) => ({
-        ...prev,
-        url: publicCfg.haUrl,
-        token: publicCfg.haToken,
-        authMethod: 'token',
-      }));
     });
     return () => {
       cancelled = true;
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isPublicModeBootstrapComplete, isPublicMode, config.token, config.authMethod, config.isIngress]);
 
   // Apply theme to DOM
   useEffect(() => {
@@ -659,6 +700,7 @@ export const ConfigProvider = ({ children }) => {
     config,
     setConfig,
     isPublicMode,
+    isPublicModeBootstrapComplete,
     isReadOnly,
   };
 

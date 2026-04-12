@@ -82,7 +82,8 @@ export function AppContent({ showOnboarding, setShowOnboarding }) {
     unlockSettingsLock,
     config,
     setConfig,
-    isPublicMode,
+    isPublicMode = false,
+    isPublicModeBootstrapComplete = true,
     isReadOnly,
   } = useConfig();
 
@@ -286,6 +287,7 @@ export function AppContent({ showOnboarding, setShowOnboarding }) {
     setConfig,
     connected,
     isPublicMode,
+    isPublicModeBootstrapComplete,
     showOnboarding,
     setShowOnboarding,
     showConfigModal,
@@ -822,7 +824,7 @@ export function AppContent({ showOnboarding, setShowOnboarding }) {
 }
 
 export default function App() {
-  const { config } = useConfig();
+  const { config, isPublicMode = false, isPublicModeBootstrapComplete = true } = useConfig();
   const [oauthTokenRevision, setOAuthTokenRevision] = useState(0);
   const [initialPage] = useState(() => {
     try {
@@ -837,7 +839,10 @@ export default function App() {
     new URLSearchParams(window.location.search).has('auth_callback');
   const hasAuth =
     config.token || (config.authMethod === 'oauth' && (hasOAuthTokens() || isOAuthCallback));
-  const [showOnboarding, setShowOnboarding] = useState(() => !hasAuth);
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    if (!isPublicModeBootstrapComplete || isPublicMode) return false;
+    return !hasAuth;
+  });
 
   useEffect(() => {
     return subscribeToOAuthTokenChanges(() => {
@@ -846,6 +851,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!isPublicModeBootstrapComplete) {
+      if (showOnboarding) setShowOnboarding(false);
+      return;
+    }
+
+    if (isPublicMode) {
+      if (showOnboarding) setShowOnboarding(false);
+      return;
+    }
+
     if (config.authMethod !== 'oauth' || !config.url || isOAuthCallback) return;
 
     if (hasOAuthTokens()) {
@@ -858,18 +873,32 @@ export default function App() {
     requestTokensFromOtherTabs().catch((error) => {
       console.error('Failed to hydrate OAuth tokens from another tab:', error);
     });
-  }, [config.authMethod, config.url, isOAuthCallback, oauthTokenRevision, showOnboarding]);
+  }, [
+    config.authMethod,
+    config.url,
+    isOAuthCallback,
+    oauthTokenRevision,
+    showOnboarding,
+    isPublicMode,
+    isPublicModeBootstrapComplete,
+  ]);
 
   // During onboarding, block token connections but ALLOW OAuth (including callbacks)
-  const haConfig = showOnboarding
-    ? config.authMethod === 'oauth'
-      ? config // OAuth: pass config through so callback can be processed
-      : { ...config, token: '' } // Token: block until onboarding finishes
-    : config;
+  const haConfig = !isPublicModeBootstrapComplete
+    ? { ...config, token: '' }
+    : showOnboarding
+      ? config.authMethod === 'oauth'
+        ? config // OAuth: pass config through so callback can be processed
+        : { ...config, token: '' } // Token: block until onboarding finishes
+      : config;
 
   // Key forces HomeAssistantProvider to remount when onboarding completes,
   // ensuring the fresh credentials trigger a new connection attempt.
-  const providerKey = showOnboarding ? 'onboarding' : 'live';
+  const providerKey = !isPublicModeBootstrapComplete
+    ? 'public-bootstrap'
+    : showOnboarding
+      ? 'onboarding'
+      : 'live';
 
   return (
     <HomeAssistantProvider key={providerKey} config={haConfig}>

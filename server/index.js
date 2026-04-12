@@ -11,6 +11,7 @@ import { createHomeAssistantAuthMiddleware } from './haAuth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || '3002', 10);
+const HOST = process.env.HOST || '0.0.0.0';
 const isProduction = process.env.NODE_ENV === 'production';
 
 const packageJsonPath = join(__dirname, '..', 'package.json');
@@ -74,8 +75,6 @@ const assetFallbackRateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-app.use('/api', apiRateLimiter);
-
 // Ingress support — strip X-Ingress-Path prefix from request URL
 app.use((req, _res, next) => {
   const ingressPath = req.headers['x-ingress-path'];
@@ -83,18 +82,6 @@ app.use((req, _res, next) => {
     req.url = req.url.slice(ingressPath.length) || '/';
   }
   next();
-});
-
-// API routes
-app.use('/api/profiles', homeAssistantAuth, profilesRouter);
-app.use('/api/icons', iconsRouter);
-app.use('/api/settings', homeAssistantAuth, settingsRouter);
-// Public-mode routes (no HA auth required — only active when TUNET_PUBLIC_MODE_ENABLED=true)
-app.use('/api/public-profiles', publicProfilesRouter);
-
-// Health check
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', version: appVersion });
 });
 
 // Public Dashboard Mode config
@@ -119,6 +106,21 @@ app.get('/api/public-config', (_req, res) => {
     haToken,
     readOnly: process.env.TUNET_PUBLIC_READ_ONLY === 'true',
   });
+});
+
+// Public-mode routes (no HA auth required — only active when TUNET_PUBLIC_MODE_ENABLED=true)
+app.use('/api/public-profiles', publicProfilesRouter);
+
+app.use('/api', apiRateLimiter);
+
+// API routes
+app.use('/api/profiles', homeAssistantAuth, profilesRouter);
+app.use('/api/icons', iconsRouter);
+app.use('/api/settings', homeAssistantAuth, settingsRouter);
+
+// Health check
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', version: appVersion });
 });
 
 // Serve static frontend files in production
@@ -222,9 +224,9 @@ if (isProduction) {
   }
 }
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, HOST, () => {
   console.log(
-    `[server] Tunet backend running on port ${PORT} (${isProduction ? 'production' : 'development'})`
+    `[server] Tunet backend running on ${HOST}:${PORT} (${isProduction ? 'production' : 'development'})`
   );
 });
 

@@ -3,6 +3,7 @@ echo "Starting Tunet Dashboard..."
 cd /app
 export NODE_ENV=production
 export PORT=3002
+export HOST=0.0.0.0
 export TUNET_TRUST_SUPERVISOR_INGRESS=1
 
 if bashio::config.has_value 'data_encryption_mode'; then
@@ -40,4 +41,5 @@ if [ "${TUNET_ENCRYPTION_MODE}" = "dual" ] || [ "${TUNET_ENCRYPTION_MODE}" = "en
 	fi
 fi
 
+echo "Starting Tunet backend on ${HOST}:${PORT}..."
 exec node server/index.js

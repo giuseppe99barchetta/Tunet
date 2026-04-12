@@ -52,6 +52,7 @@
  * @property {HomeAssistantConfig} config
  * @property {import('react').Dispatch<import('react').SetStateAction<HomeAssistantConfig>>} setConfig
  * @property {boolean} isPublicMode
+ * @property {boolean} isPublicModeBootstrapComplete
  * @property {boolean} isReadOnly
  */
 
@@ -84,6 +85,8 @@
  * @property {HomeAssistantConfig} config
  * @property {import('react').Dispatch<import('react').SetStateAction<HomeAssistantConfig>>} setConfig
  * @property {boolean} connected
+ * @property {boolean} isPublicMode
+ * @property {boolean} isPublicModeBootstrapComplete
  * @property {boolean} showOnboarding
  * @property {import('react').Dispatch<import('react').SetStateAction<boolean>>} setShowOnboarding
  * @property {boolean} showConfigModal

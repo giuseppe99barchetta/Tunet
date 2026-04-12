@@ -65,7 +65,7 @@ const READ_CURRENT_FAILED = Symbol('READ_CURRENT_FAILED');
  * @param {boolean} [options.isPublicMode]  — when true, all server sync is disabled
  */
 export function useSettingsSync({ haUserId, contextSettersRef, isPublicMode = false }) {
-  const deviceIdRef = useRef(getOrCreateDeviceId());
+  const deviceIdRef = useRef(isPublicMode ? 'kiosk' : getOrCreateDeviceId());
   const deviceLabelRef = useRef(getStoredDeviceLabel());
   const [enabled, setEnabled] = useState(() => {
     try {
@@ -101,6 +101,13 @@ export function useSettingsSync({ haUserId, contextSettersRef, isPublicMode = fa
   const pushCurrentToServerRef = useRef(null);
 
   useEffect(() => {
+    if (!isPublicMode) return;
+    deviceIdRef.current = 'kiosk';
+    setKnownDevices([]);
+    setHistory([]);
+  }, [isPublicMode]);
+
+  useEffect(() => {
     try {
       localStorage.setItem('tunet_auto_sync_enabled', enabled ? '1' : '0');
     } catch {
@@ -120,27 +127,27 @@ export function useSettingsSync({ haUserId, contextSettersRef, isPublicMode = fa
   }, [historyKeepLimit]);
 
   const refreshKnownDevices = useCallback(async () => {
-    if (!haUserId) return;
+    if (!haUserId || isPublicMode) return;
     try {
       const rows = await apiFetchCurrentDevices(haUserId);
       setKnownDevices(Array.isArray(rows) ? rows : []);
     } catch {
       // ignore device list errors
     }
-  }, [haUserId]);
+  }, [haUserId, isPublicMode]);
 
   const refreshHistory = useCallback(async () => {
-    if (!haUserId) return;
+    if (!haUserId || isPublicMode) return;
     try {
       const rows = await apiFetchSettingsHistory(haUserId, deviceIdRef.current, 30);
       setHistory(Array.isArray(rows) ? rows : []);
     } catch {
       setHistory([]);
     }
-  }, [haUserId]);
+  }, [haUserId, isPublicMode]);
 
   const readCurrentFromServer = useCallback(async () => {
-    if (!haUserId) return null;
+    if (!haUserId || isPublicMode) return null;
     try {
       const row = await apiFetchCurrentSettings(haUserId, deviceIdRef.current);
       if (row && typeof row === 'object') {
@@ -165,7 +172,7 @@ export function useSettingsSync({ haUserId, contextSettersRef, isPublicMode = fa
       setError(fetchError?.message || 'Failed to fetch current settings');
       return READ_CURRENT_FAILED;
     }
-  }, [haUserId]);
+  }, [haUserId, isPublicMode]);
 
   const applyServerRow = useCallback(
     async (row, options = {}) => {
@@ -214,7 +221,7 @@ export function useSettingsSync({ haUserId, contextSettersRef, isPublicMode = fa
   );
 
   const reconcileFromServer = useCallback(async (options = {}) => {
-    if (!haUserId) return false;
+    if (!haUserId || isPublicMode) return false;
 
     const forcedServerRevision = Number.isFinite(Number(options.forceServerRevision))
       ? Number(options.forceServerRevision)
@@ -227,11 +234,11 @@ export function useSettingsSync({ haUserId, contextSettersRef, isPublicMode = fa
       // ignore reconciliation errors
       return false;
     }
-  }, [haUserId, applyServerRow]);
+  }, [haUserId, isPublicMode, applyServerRow]);
 
   const pushCurrentToServer = useCallback(
     async (options = {}) => {
-      if (!haUserId) return null;
+      if (!haUserId || isPublicMode) return null;
 
       const snapshot = collectSnapshot();
       if (!isValidSnapshot(snapshot)) {
@@ -291,6 +298,7 @@ export function useSettingsSync({ haUserId, contextSettersRef, isPublicMode = fa
     },
     [
       haUserId,
+      isPublicMode,
       currentRevision,
       historyKeepLimit,
       reconcileFromServer,
@@ -303,6 +311,7 @@ export function useSettingsSync({ haUserId, contextSettersRef, isPublicMode = fa
 
   const queueAutoSync = useCallback(
     (force = false, { ignoreEnabled = false } = {}) => {
+      if (isPublicMode) return;
       if ((!enabled && !ignoreEnabled) || !haUserId) return;
 
       const snapshot = collectSnapshot();
@@ -328,7 +337,7 @@ export function useSettingsSync({ haUserId, contextSettersRef, isPublicMode = fa
         force ? 0 : 3500
       );
     },
-    [enabled, haUserId, pushCurrentToServer]
+    [enabled, haUserId, isPublicMode, pushCurrentToServer]
   );
 
   useEffect(() => {
@@ -387,6 +396,7 @@ export function useSettingsSync({ haUserId, contextSettersRef, isPublicMode = fa
 
   const loadCurrentFromServer = useCallback(
     async (revision) => {
+      if (isPublicMode) return;
       const row = Number.isFinite(Number(revision))
         ? await apiFetchCurrentSettings(haUserId, deviceIdRef.current, Number(revision))
         : await readCurrentFromServer();
@@ -402,12 +412,12 @@ export function useSettingsSync({ haUserId, contextSettersRef, isPublicMode = fa
 
       applySnapshot(row.data, contextSettersRef?.current || {});
     },
-    [haUserId, readCurrentFromServer, contextSettersRef]
+    [haUserId, isPublicMode, readCurrentFromServer, contextSettersRef]
   );
 
   const publishCurrentToDevices = useCallback(
     async (targetDeviceIds) => {
-      if (!haUserId) return;
+      if (!haUserId || isPublicMode) return;
       setPublishing(true);
       setError('');
       try {
@@ -452,11 +462,18 @@ export function useSettingsSync({ haUserId, contextSettersRef, isPublicMode = fa
         setPublishing(false);
       }
     },
-    [haUserId, historyKeepLimit, pushCurrentToServer, refreshKnownDevices, refreshHistory]
+    [
+      haUserId,
+      isPublicMode,
+      historyKeepLimit,
+      pushCurrentToServer,
+      refreshKnownDevices,
+      refreshHistory,
+    ]
   );
 
   const clearHistory = useCallback(async () => {
-    if (!haUserId) return;
+    if (!haUserId || isPublicMode) return;
     setClearingHistory(true);
     setError('');
     try {
@@ -469,11 +486,11 @@ export function useSettingsSync({ haUserId, contextSettersRef, isPublicMode = fa
     } finally {
       setClearingHistory(false);
     }
-  }, [haUserId, refreshHistory]);
+  }, [haUserId, isPublicMode, refreshHistory]);
 
   const removeKnownDevice = useCallback(
     async (targetDeviceId) => {
-      if (!haUserId || !targetDeviceId) return;
+      if (!haUserId || !targetDeviceId || isPublicMode) return;
       if (targetDeviceId === deviceIdRef.current) {
         const removeCurrentError = new Error('Cannot remove current device');
         setStatus('error');
@@ -494,12 +511,12 @@ export function useSettingsSync({ haUserId, contextSettersRef, isPublicMode = fa
         setRemovingDeviceId('');
       }
     },
-    [haUserId, refreshKnownDevices]
+    [haUserId, isPublicMode, refreshKnownDevices]
   );
 
   const renameKnownDevice = useCallback(
     async (targetDeviceId, nextLabel) => {
-      if (!haUserId || !targetDeviceId) return;
+      if (!haUserId || !targetDeviceId || isPublicMode) return;
 
       setUpdatingDeviceId(targetDeviceId);
       setError('');
@@ -523,7 +540,7 @@ export function useSettingsSync({ haUserId, contextSettersRef, isPublicMode = fa
         setUpdatingDeviceId('');
       }
     },
-    [haUserId, refreshKnownDevices]
+    [haUserId, isPublicMode, refreshKnownDevices]
   );
 
   return {

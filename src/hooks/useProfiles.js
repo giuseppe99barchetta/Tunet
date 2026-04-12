@@ -247,13 +247,6 @@ export function useProfiles({ haUser, contextSetters, isPublicMode = false, conn
   useEffect(() => {
     if (!isPublicMode || publicProfileAttempted) return;
 
-    const lastProfileId = readLastProfileId();
-    if (lastProfileId) {
-      console.log('[PublicMode] Skipping default public profile fetch — last_profile_id already set:', lastProfileId);
-      setPublicProfileAttempted(true);
-      return;
-    }
-
     let cancelled = false;
     setPublicProfileAttempted(true);
     console.log('[PublicMode] Public mode active — fetching default profile from server...');

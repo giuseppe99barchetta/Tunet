@@ -17,6 +17,7 @@ export function useConnectionSetup({
   setConfig,
   connected,
   isPublicMode,
+  isPublicModeBootstrapComplete = true,
   showOnboarding,
   setShowOnboarding,
   showConfigModal,
@@ -32,26 +33,44 @@ export function useConnectionSetup({
 
   // ── Auto-close onboarding when OAuth connects ──────────────────────────
   useEffect(() => {
+    if (!isPublicModeBootstrapComplete) return;
     if (connected && config.authMethod === 'oauth' && showOnboarding) {
       setShowOnboarding(false);
       setShowConfigModal(false);
     }
-  }, [connected, config.authMethod, showOnboarding, setShowOnboarding, setShowConfigModal]);
+  }, [
+    connected,
+    config.authMethod,
+    showOnboarding,
+    setShowOnboarding,
+    setShowConfigModal,
+    isPublicModeBootstrapComplete,
+  ]);
 
   // ── Close onboarding for public mode (token auth) ─────────────────────
   // ConfigContext bootstrap sets credentials asynchronously, so showOnboarding
   // may already be true by the time isPublicMode flips to true.  No mechanism
   // in the OAuth auto-close above handles the token-auth path, so we do it here.
   useEffect(() => {
+    if (!isPublicModeBootstrapComplete) return;
     if (isPublicMode && config.token && showOnboarding) {
       console.log('[PublicMode] Public mode credentials ready — dismissing onboarding overlay.');
       setShowOnboarding(false);
       setShowConfigModal(false);
     }
-  }, [isPublicMode, config.token, showOnboarding, setShowOnboarding, setShowConfigModal]);
+  }, [
+    isPublicMode,
+    config.token,
+    showOnboarding,
+    setShowOnboarding,
+    setShowConfigModal,
+    isPublicModeBootstrapComplete,
+  ]);
 
   // ── Re-open onboarding when auth is lost ───────────────────────────────
   useEffect(() => {
+    if (!isPublicModeBootstrapComplete) return;
+
     // Don't re-open during an active OAuth callback — tokens haven't been
     // saved yet so hasOAuthTokens() is false, but the exchange is in flight.
     const isOAuthCallback =
@@ -68,7 +87,15 @@ export function useConnectionSetup({
       setOnboardingStep(0);
       setConfigTab('connection');
     }
-  }, [isPublicMode, config.token, config.authMethod, showOnboarding, showConfigModal, setShowOnboarding]);
+  }, [
+    isPublicMode,
+    config.token,
+    config.authMethod,
+    showOnboarding,
+    showConfigModal,
+    setShowOnboarding,
+    isPublicModeBootstrapComplete,
+  ]);
 
   // ── Connection test (long-lived token) ─────────────────────────────────
   const testConnection = async () => {
