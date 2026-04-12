@@ -75,6 +75,39 @@ npm run dev:all
 - Frontend: `http://localhost:5173`
 - Backend API: `http://localhost:3002/api`
 
+## Public Dashboard Mode (Kiosk Mode)
+
+Public Mode lets you run Tunet on wall-mounted tablets or kiosk screens without requiring a manual login. When enabled, new devices that open the dashboard are automatically bootstrapped with the pre-configured Home Assistant credentials and the latest saved profile from the database.
+
+### Configuration Parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `tunet_public_mode_enabled` | Boolean | Enables Public Mode. When `true`, the login screen is bypassed for new devices and the credentials below are used automatically. |
+| `tunet_public_ha_url` | String | Internal or external URL of your Home Assistant instance (e.g. `http://192.168.1.100:8123`). |
+| `tunet_public_ha_token` | Password | A Long-Lived Access Token from HA used by the public dashboard to fetch entity data and control devices. |
+| `tunet_public_read_only` | Boolean | Locks the dashboard layout. Users cannot move cards, add new ones, or access settings. Ideal for wall-mounted tablets. |
+
+### Quick Start Guide
+
+1. **Generate a Long-Lived Access Token** in Home Assistant: go to your profile page (`/profile`) → scroll to *Long-Lived Access Tokens* → *Create Token*.
+2. **Set the parameters** in the Add-on configuration (or as environment variables when using Docker):
+   ```yaml
+   tunet_public_mode_enabled: true
+   tunet_public_ha_url: 'http://192.168.1.100:8123'
+   tunet_public_ha_token: 'your_token_here'
+   tunet_public_read_only: true   # optional — locks layout on kiosk screens
+   ```
+3. **Restart the Add-on** (or container) to apply the new settings.
+4. **Verify** by opening the dashboard in an incognito / private window — it should load without showing the login screen.
+
+### Troubleshooting
+
+> **Dashboard appears empty after the first load?**
+> Ensure you have imported or saved at least one profile while logged in as a normal user. Public Mode automatically serves the most recently saved profile in the database. If the database is empty, save your layout once from the Profiles panel and reload the kiosk page.
+
+---
+
 ## Updating
 
 See [SETUP.md](SETUP.md) for detailed setup, configuration, and troubleshooting.

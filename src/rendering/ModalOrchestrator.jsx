@@ -1,5 +1,6 @@
 import { buildOnboardingSteps } from '../config/onboarding';
 import { useHomeAssistantMeta } from '../contexts';
+import { useConfig } from '../contexts/ConfigContext';
 import { useProfiles } from '../hooks/useProfiles';
 import { ModalEntitySlice } from './modalSlices/ModalEntitySlice';
 import { ModalManagementSlice } from './modalSlices/ModalManagementSlice';
@@ -112,6 +113,7 @@ export default function ModalOrchestrator({
   const onboardingSteps = buildOnboardingSteps(t);
 
   const { haUser } = useHomeAssistantMeta();
+  const { isReadOnly = false } = useConfig();
   const profileContextSetters = buildProfilesContextSetters({
     page: {
       persistConfig,
@@ -150,6 +152,7 @@ export default function ModalOrchestrator({
     haUser,
     contextSetters: profileContextSetters,
     isPublicMode,
+    isReadOnly,
     connected,
   });
 

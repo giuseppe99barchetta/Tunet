@@ -1,10 +1,10 @@
 {
   "name": "tunet-dashboard",
   "private": true,
-  "version": "1.15.52",
+  "version": "1.15.55",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/oyvhov/tunet.git"
+    "url": "git+https://github.com/giuseppe99barchetta/Tunet.git"
   },
   "license": "GPL-3.0",
   "type": "module",

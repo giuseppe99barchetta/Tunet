@@ -121,4 +121,31 @@ export async function fetchPublicDefaultProfile() {
   return res.json();
 }
 
+/**
+ * Write back updated dashboard data to the public default profile.
+ * Only succeeds when the server has TUNET_PUBLIC_READ_ONLY=false.
+ *
+ * @param {string} profileId
+ * @param {object} data
+ * @returns {Promise<{ id: string; updated_at: string }>}
+ */
+export async function updatePublicProfile(profileId, data) {
+  const res = await fetch(`${API_BASE}/public-profiles/default`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: profileId, data }),
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const error = /** @type {any} */ (new Error(body.error || `API error ${res.status}`));
+    error.status = res.status;
+    error.body = body;
+    throw error;
+  }
+
+  return res.json();
+}
+
 // ── Templates ────────────────────────────────────────────────────────

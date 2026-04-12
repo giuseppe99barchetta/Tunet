@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   fetchProfiles as apiFetchProfiles,
   fetchPublicDefaultProfile as apiFetchPublicDefaultProfile,
+  updatePublicProfile as apiUpdatePublicProfile,
   createProfile as apiCreateProfile,
   updateProfile as apiUpdateProfile,
   deleteProfile as apiDeleteProfile,
@@ -119,13 +120,20 @@ function writeLastProfileId(profileId) {
  * @param {boolean}     [options.isPublicMode]  — public dashboard mode enabled
  * @param {boolean}     [options.connected]     — HA websocket connected
  */
-export function useProfiles({ haUser, contextSetters, isPublicMode = false, connected = false }) {
+export function useProfiles({ haUser, contextSetters, isPublicMode = false, isReadOnly = false, connected = false }) {
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [loadSummary, setLoadSummary] = useState(null);
   const [backendAvailable, setBackendAvailable] = useState(true);
   const [publicProfileAttempted, setPublicProfileAttempted] = useState(false);
+  // Tracks the ID of the profile served by /api/public-profiles/default so
+  // write-back (non-read-only public mode) can target the correct row.
+  const publicProfileIdRef = useRef(null);
+  const isPublicModeRef = useRef(isPublicMode);
+  isPublicModeRef.current = isPublicMode;
+  const isReadOnlyRef = useRef(isReadOnly);
+  isReadOnlyRef.current = isReadOnly;
   const contextSettersRef = useRef(contextSetters);
   contextSettersRef.current = contextSetters;
   const autoSync = useSettingsSync({ haUserId: haUser?.id, contextSettersRef, isPublicMode });
@@ -237,6 +245,7 @@ export function useProfiles({ haUser, contextSetters, isPublicMode = false, conn
         '—',
         profile.name || '(unnamed)'
       );
+      publicProfileIdRef.current = profile.id || null;
       setProfiles((prev) => {
         if (prev.some((p) => p.id === profile.id)) return prev;
         return [profile, ...prev];
@@ -249,6 +258,29 @@ export function useProfiles({ haUser, contextSetters, isPublicMode = false, conn
       return false;
     }
   }, [publicProfileAttempted, loadProfile]);
+
+  // ── Write back dashboard changes to the public profile (non-read-only mode) ──
+  const overwritePublicProfile = useCallback(async () => {
+    if (isReadOnlyRef.current) {
+      console.log('[PublicMode] Skipping write-back: dashboard is read-only.');
+      return;
+    }
+    const targetId = publicProfileIdRef.current;
+    const snapshot = collectSnapshot();
+    if (!isValidSnapshot(snapshot)) return;
+    try {
+      // Pass the id (may be 'public-default-fallback' or null on first save —
+      // the server will upsert and return the real id.
+      const result = await apiUpdatePublicProfile(targetId, snapshot);
+      // Persist the real id returned by the server so future saves go to the same row.
+      if (result?.id && result.id !== targetId) {
+        publicProfileIdRef.current = result.id;
+      }
+      console.log('[PublicMode] Dashboard changes saved back to public profile.');
+    } catch (err) {
+      console.warn('[PublicMode] Write-back failed:', err?.message ?? err);
+    }
+  }, []);
 
   // ── Load profiles when haUser/public mode changes ──
   const refreshProfiles = useCallback(async () => {
@@ -308,7 +340,13 @@ export function useProfiles({ haUser, contextSetters, isPublicMode = false, conn
     if (notes.length > 0) {
       setLoadSummary(notes.join(' '));
     }
-  }, []);
+
+    // In public writable mode, immediately persist the imported layout to the backend.
+    if (isPublicModeRef.current && !isReadOnlyRef.current) {
+      // Run async after the current render cycle so applySnapshot state updates settle.
+      Promise.resolve().then(() => overwritePublicProfile());
+    }
+  }, [overwritePublicProfile]);
 
   const exportDashboard = useCallback(() => {
     setError(null);
@@ -405,6 +443,7 @@ export function useProfiles({ haUser, contextSetters, isPublicMode = false, conn
     backendAvailable,
     saveProfile,
     overwriteProfile,
+    overwritePublicProfile,
     editProfile,
     loadProfile,
     importDashboard,
