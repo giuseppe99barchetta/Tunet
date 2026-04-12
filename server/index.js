@@ -27,6 +27,14 @@ const envFlag = (value) => String(value || '').trim().toLowerCase() === 'true';
 const app = express();
 const homeAssistantAuth = createHomeAssistantAuthMiddleware();
 app.set('trust proxy', true);
+
+// Debug middleware — logs every incoming request so routing issues can be diagnosed.
+// Safe to keep in production; remove once the public-mode routing is confirmed working.
+app.use((req, _res, next) => {
+  console.log(`[DEBUG] ${req.method} ${req.url}`);
+  next();
+});
+
 app.disable('x-powered-by');
 app.use((_req, res, next) => {
   res.removeHeader('X-Powered-By');

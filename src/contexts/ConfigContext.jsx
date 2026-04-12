@@ -295,27 +295,18 @@ export const ConfigProvider = ({ children }) => {
   }, []);
 
   // Bootstrap Public Dashboard Mode before any private auth/onboarding flow.
-  // If there are no local credentials, public mode gets first priority.
+  // Always fetch /api/public-config first — this lets a server-configured
+  // public/kiosk mode override any credentials that may already be in localStorage.
+  // If the server returns no public config (404 / disabled), local credentials
+  // remain untouched and the normal auth flow proceeds.
   useEffect(() => {
     let cancelled = false;
 
-    const hasLocalTokenCred = Boolean(config.token);
-    const hasLocalOAuthCred = config.authMethod === 'oauth' && hasOAuthTokens();
-    const hasIngressSession = Boolean(config.isIngress && config.token);
-    const hasLocalCredentials = hasLocalTokenCred || hasLocalOAuthCred || hasIngressSession;
-
-    if (hasLocalCredentials) {
-      setIsPublicModeBootstrapComplete(true);
-      return () => {
-        cancelled = true;
-      };
-    }
+    console.log('[PublicMode] Attempting to fetch public credentials...');
 
     loadPublicConfig()
-      .catch(() => {
-        if (!cancelled) {
-          setIsPublicModeBootstrapComplete(true);
-        }
+      .catch((err) => {
+        console.warn('[PublicMode] Fetch failed:', err);
       })
       .finally(() => {
         if (!cancelled) {
@@ -326,7 +317,7 @@ export const ConfigProvider = ({ children }) => {
     return () => {
       cancelled = true;
     };
-  }, [config.token, config.authMethod, config.isIngress, loadPublicConfig]);
+  }, [loadPublicConfig]);
 
   // Public mode is authoritative: mark runtime state so downstream hooks can
   // bypass private-session profile flows and go straight to shared profile loading.

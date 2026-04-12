@@ -16,6 +16,9 @@ import { resolveStoredDataText } from '../utils/dataCrypto.js';
 
 const router = Router();
 
+// Mirrors the envFlag helper in server/index.js — normalises boolean-like env strings.
+const envFlag = (value) => String(value || '').trim().toLowerCase() === 'true';
+
 const safeParseJson = (raw, fallback = null) => {
   try {
     return JSON.parse(raw);
@@ -71,7 +74,7 @@ const buildFallbackDashboardData = () => ({
 router.get('/default', (_req, res) => {
   console.log('[PublicMode] Public profile request received.');
 
-  if (process.env.TUNET_PUBLIC_MODE_ENABLED !== 'true') {
+  if (!envFlag(process.env.TUNET_PUBLIC_MODE_ENABLED)) {
     console.log('[PublicMode] Public mode is not enabled — returning 404.');
     return res.status(404).json({ error: 'Not found' });
   }
