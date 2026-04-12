@@ -30,9 +30,7 @@ if bashio::config.has_value 'tunet_public_ha_token'; then
 	export TUNET_PUBLIC_HA_TOKEN="$(bashio::config 'tunet_public_ha_token')"
 fi
 
-if bashio::config.has_value 'tunet_public_read_only'; then
-	export TUNET_PUBLIC_READ_ONLY="$(bashio::config 'tunet_public_read_only')"
-fi
+export TUNET_PUBLIC_READ_ONLY="$(bashio::config 'tunet_public_read_only')"
 
 if [ "${TUNET_ENCRYPTION_MODE}" = "dual" ] || [ "${TUNET_ENCRYPTION_MODE}" = "enc_only" ]; then
 	if [ -z "${TUNET_DATA_KEY}" ]; then

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { themes } from '../config/themes';
 import { DEFAULT_LANGUAGE, normalizeLanguage } from '../i18n';
 import { hashPin, verifyPin } from '../utils';
@@ -276,30 +276,42 @@ export const ConfigProvider = ({ children }) => {
     return { url: '', fallbackUrl: '', token: '', authMethod: 'oauth' };
   });
 
+  const loadPublicConfig = useCallback(async () => {
+    const publicCfg = await fetchPublicConfig();
+    if (!publicCfg) return null;
+
+    console.log('Public Mode Active: Bypassing authentication and loading shared dashboard.');
+    setIsPublicMode(true);
+    setIsReadOnly(publicCfg.readOnly);
+    setConfig((prev) => ({
+      ...prev,
+      url: publicCfg.haUrl,
+      fallbackUrl: '',
+      token: publicCfg.haToken,
+      authMethod: 'token',
+    }));
+
+    return publicCfg;
+  }, []);
+
   // Bootstrap Public Dashboard Mode before any private auth/onboarding flow.
+  // If there are no local credentials, public mode gets first priority.
   useEffect(() => {
     let cancelled = false;
-    fetchPublicConfig()
-      .then((publicCfg) => {
-        if (cancelled) return;
 
-        if (!publicCfg) {
-          setIsPublicModeBootstrapComplete(true);
-          return;
-        }
+    const hasLocalTokenCred = Boolean(config.token);
+    const hasLocalOAuthCred = config.authMethod === 'oauth' && hasOAuthTokens();
+    const hasIngressSession = Boolean(config.isIngress && config.token);
+    const hasLocalCredentials = hasLocalTokenCred || hasLocalOAuthCred || hasIngressSession;
 
-        console.log('Public Mode Active: Bypassing authentication and loading shared dashboard.');
-        setIsPublicMode(true);
-        setIsReadOnly(publicCfg.readOnly);
-        setConfig((prev) => ({
-          ...prev,
-          url: publicCfg.haUrl,
-          fallbackUrl: '',
-          token: publicCfg.haToken,
-          authMethod: 'token',
-        }));
-        setIsPublicModeBootstrapComplete(true);
-      })
+    if (hasLocalCredentials) {
+      setIsPublicModeBootstrapComplete(true);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    loadPublicConfig()
       .catch(() => {
         if (!cancelled) {
           setIsPublicModeBootstrapComplete(true);
@@ -314,36 +326,7 @@ export const ConfigProvider = ({ children }) => {
     return () => {
       cancelled = true;
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Legacy fallback bootstrap: keep behavior for sessions where public mode was
-  // not detected at startup and no local credentials exist.
-  useEffect(() => {
-    if (!isPublicModeBootstrapComplete || isPublicMode) return;
-    const hasTokenCred = Boolean(config.token);
-    const hasOAuthCred = config.authMethod === 'oauth' && hasOAuthTokens();
-    const hasIngress = Boolean(config.isIngress);
-    if (hasTokenCred || hasOAuthCred || hasIngress) return;
-
-    let cancelled = false;
-    fetchPublicConfig().then((publicCfg) => {
-      if (!cancelled && publicCfg) {
-        console.log('Public Mode Active: Bypassing authentication and loading shared dashboard.');
-        setIsPublicMode(true);
-        setIsReadOnly(publicCfg.readOnly);
-        setConfig((prev) => ({
-          ...prev,
-          url: publicCfg.haUrl,
-          fallbackUrl: '',
-          token: publicCfg.haToken,
-          authMethod: 'token',
-        }));
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [isPublicModeBootstrapComplete, isPublicMode, config.token, config.authMethod, config.isIngress]);
+  }, [config.token, config.authMethod, config.isIngress, loadPublicConfig]);
 
   // Public mode is authoritative: mark runtime state so downstream hooks can
   // bypass private-session profile flows and go straight to shared profile loading.

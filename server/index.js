@@ -22,6 +22,8 @@ try {
   appVersion = 'unknown';
 }
 
+const envFlag = (value) => String(value || '').trim().toLowerCase() === 'true';
+
 const app = express();
 const homeAssistantAuth = createHomeAssistantAuthMiddleware();
 app.set('trust proxy', true);
@@ -100,7 +102,7 @@ app.use((req, _res, next) => {
 // The HA token is intentionally exposed to the browser — this is a documented tradeoff
 // for unattended kiosk devices. Do NOT enable on shared or internet-facing servers.
 app.get('/api/public-config', (_req, res) => {
-  if (process.env.TUNET_PUBLIC_MODE_ENABLED !== 'true') {
+  if (!envFlag(process.env.TUNET_PUBLIC_MODE_ENABLED)) {
     return res.status(404).json({ error: 'Not found' });
   }
 
@@ -114,7 +116,7 @@ app.get('/api/public-config', (_req, res) => {
   return res.json({
     haUrl,
     haToken,
-    readOnly: process.env.TUNET_PUBLIC_READ_ONLY === 'true',
+    readOnly: envFlag(process.env.TUNET_PUBLIC_READ_ONLY),
   });
 });
 
