@@ -345,6 +345,20 @@ export const ConfigProvider = ({ children }) => {
     };
   }, [isPublicModeBootstrapComplete, isPublicMode, config.token, config.authMethod, config.isIngress]);
 
+  // Public mode is authoritative: mark runtime state so downstream hooks can
+  // bypass private-session profile flows and go straight to shared profile loading.
+  useEffect(() => {
+    try {
+      if (isPublicMode) {
+        localStorage.setItem('tunet_public_mode_active', '1');
+      } else {
+        localStorage.removeItem('tunet_public_mode_active');
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [isPublicMode]);
+
   // Apply theme to DOM
   useEffect(() => {
     const themeKey = themes[currentTheme] ? currentTheme : 'dark';

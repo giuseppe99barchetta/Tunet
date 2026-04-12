@@ -11,7 +11,6 @@ import { createHomeAssistantAuthMiddleware } from './haAuth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || '3002', 10);
-const HOST = process.env.HOST || '0.0.0.0';
 const isProduction = process.env.NODE_ENV === 'production';
 
 const packageJsonPath = join(__dirname, '..', 'package.json');
@@ -25,6 +24,7 @@ try {
 
 const app = express();
 const homeAssistantAuth = createHomeAssistantAuthMiddleware();
+app.set('trust proxy', true);
 app.disable('x-powered-by');
 app.use((_req, res, next) => {
   res.removeHeader('X-Powered-By');
@@ -66,6 +66,12 @@ const apiRateLimiter = rateLimit({
   max: Math.max(Number(process.env.API_RATE_LIMIT_MAX) || 300, 10),
   standardHeaders: true,
   legacyHeaders: false,
+  // HA Ingress sits behind Supervisor proxy; disable proxy-related runtime
+  // validations that otherwise throw when trust proxy is intentionally enabled.
+  validate: {
+    trustProxy: false,
+    xForwardedForHeader: false,
+  },
 });
 
 const assetFallbackRateLimiter = rateLimit({
@@ -73,6 +79,10 @@ const assetFallbackRateLimiter = rateLimit({
   max: Math.max(Number(process.env.ASSET_FALLBACK_RATE_LIMIT_MAX) || 120, 10),
   standardHeaders: true,
   legacyHeaders: false,
+  validate: {
+    trustProxy: false,
+    xForwardedForHeader: false,
+  },
 });
 
 // Ingress support — strip X-Ingress-Path prefix from request URL
@@ -224,9 +234,10 @@ if (isProduction) {
   }
 }
 
-app.listen(PORT, HOST, () => {
+app.listen(PORT, '0.0.0.0', () => {
+  console.log('Trust Proxy enabled for Home Assistant Ingress support.');
   console.log(
-    `[server] Tunet backend running on ${HOST}:${PORT} (${isProduction ? 'production' : 'development'})`
+    `[server] Tunet backend running on 0.0.0.0:${PORT} (${isProduction ? 'production' : 'development'})`
   );
 });
 

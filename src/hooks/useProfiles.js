@@ -130,23 +130,6 @@ export function useProfiles({ haUser, contextSetters, isPublicMode = false, conn
   contextSettersRef.current = contextSetters;
   const autoSync = useSettingsSync({ haUserId: haUser?.id, contextSettersRef, isPublicMode });
 
-  // ── Load profiles when haUser changes ──
-  const refreshProfiles = useCallback(async () => {
-    if (!haUser?.id || isPublicMode) return;
-    try {
-      const data = await apiFetchProfiles(haUser.id);
-      setProfiles(data);
-      setBackendAvailable(true);
-    } catch (err) {
-      console.warn('Failed to fetch profiles:', err);
-      setBackendAvailable(false);
-    }
-  }, [haUser?.id]);
-
-  useEffect(() => {
-    refreshProfiles();
-  }, [refreshProfiles]);
-
   // ── Save current dashboard as a new profile ──
   const saveProfile = useCallback(
     async (name, deviceLabel = '') => {
@@ -239,37 +222,60 @@ export function useProfiles({ haUser, contextSetters, isPublicMode = false, conn
     }
   }, []);
 
-  // ── Auto-load public default profile in public mode ──────────────────
-  // This intentionally does NOT gate on `connected` — we fetch the layout
-  // from our own Express server, which is available before the HA WebSocket
-  // connects.  Decoupling the two means the dashboard shows the saved layout
-  // immediately, even if HA takes a moment to establish the connection.
-  useEffect(() => {
-    if (!isPublicMode || publicProfileAttempted) return;
+  const loadPublicProfile = useCallback(async (reason = 'public-mode') => {
+    if (publicProfileAttempted) return false;
 
-    let cancelled = false;
     setPublicProfileAttempted(true);
-    console.log('[PublicMode] Public mode active — fetching default profile from server...');
+    console.log(`[PublicMode] Loading shared public profile (${reason})...`);
 
-    apiFetchPublicDefaultProfile()
-      .then((profile) => {
-        if (cancelled || !profile?.data || typeof profile.data !== 'object') return;
-        console.log('[PublicMode] Profile received:', profile.id || '(no id)', '—', profile.name || '(unnamed)');
-        setProfiles((prev) => {
-          if (prev.some((p) => p.id === profile.id)) return prev;
-          return [profile, ...prev];
-        });
-        loadProfile(profile);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.warn('[PublicMode] Error: Public default profile fetch failed:', err);
+    try {
+      const profile = await apiFetchPublicDefaultProfile();
+      if (!profile?.data || typeof profile.data !== 'object') return false;
+      console.log(
+        '[PublicMode] Profile received:',
+        profile.id || '(no id)',
+        '—',
+        profile.name || '(unnamed)'
+      );
+      setProfiles((prev) => {
+        if (prev.some((p) => p.id === profile.id)) return prev;
+        return [profile, ...prev];
       });
+      loadProfile(profile);
+      setBackendAvailable(true);
+      return true;
+    } catch (err) {
+      console.warn('[PublicMode] Error: Public default profile fetch failed:', err);
+      return false;
+    }
+  }, [publicProfileAttempted, loadProfile]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [isPublicMode, publicProfileAttempted, loadProfile]);
+  // ── Load profiles when haUser/public mode changes ──
+  const refreshProfiles = useCallback(async () => {
+    if (isPublicMode) {
+      await loadPublicProfile('public-mode-short-circuit');
+      return;
+    }
+
+    if (!haUser?.id) return;
+
+    try {
+      const data = await apiFetchProfiles(haUser.id);
+      setProfiles(data);
+      setBackendAvailable(true);
+    } catch (err) {
+      if (err?.status === 401 || err?.status === 403) {
+        const loaded = await loadPublicProfile('private-profile-auth-fallback');
+        if (loaded) return;
+      }
+      console.warn('Failed to fetch profiles:', err);
+      setBackendAvailable(false);
+    }
+  }, [haUser?.id, isPublicMode, loadPublicProfile]);
+
+  useEffect(() => {
+    refreshProfiles();
+  }, [refreshProfiles]);
 
   const importDashboard = useCallback((snapshotCandidate) => {
     setError(null);
