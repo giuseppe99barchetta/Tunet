@@ -693,6 +693,8 @@
   "profiles.deviceLabelPlaceholder": "Device label (optional, e.g. Kitchen tablet)",
   "profiles.export": "Export to file",
   "profiles.import": "Import from file",
+  "profiles.publishToShared": "Publish as shared dashboard",
+  "profiles.publishToSharedDone": "Published!",
   "profiles.invalidFile": "Invalid file format. Must be a Tunet dashboard export.",
   "profiles.load": "Load",
   "profiles.myProfiles": "My Profiles",

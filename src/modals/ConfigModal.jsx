@@ -460,6 +460,7 @@ export default function ConfigModal({
   const [editingProfileId, setEditingProfileId] = useState(null);
   const [editName, setEditName] = useState('');
   const [editLabel, setEditLabel] = useState('');
+  const [publishedToShared, setPublishedToShared] = useState(false);
   const importFileRef = useRef(null);
 
   const renderProfilesTab = () => {
@@ -477,6 +478,7 @@ export default function ConfigModal({
       removeProfile,
       importDashboard,
       exportDashboard,
+      overwritePublicProfile,
       startBlank,
       haUser,
       autoSync,
@@ -988,6 +990,19 @@ export default function ConfigModal({
             </h3>
             {haUser && backendAvailable && (
               <div className="flex items-center gap-1.5">
+                {!isPublicMode && typeof overwritePublicProfile === 'function' && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await overwritePublicProfile();
+                      setPublishedToShared(true);
+                      setTimeout(() => setPublishedToShared(false), 2500);
+                    }}
+                    className="rounded-md border border-[var(--glass-border)] bg-[var(--glass-bg)] px-2 py-1 text-[10px] font-bold tracking-wider text-[var(--text-secondary)] uppercase transition-all hover:bg-[var(--glass-bg-hover)]"
+                  >
+                    {publishedToShared ? t('profiles.publishToSharedDone') : t('profiles.publishToShared')}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleExportDashboard}
@@ -2291,6 +2306,7 @@ const profilesShape = PropTypes.shape({
   removeProfile: PropTypes.func,
   importDashboard: PropTypes.func,
   exportDashboard: PropTypes.func,
+  overwritePublicProfile: PropTypes.func,
   startBlank: PropTypes.func,
   autoSync: autoSyncShape,
 });
