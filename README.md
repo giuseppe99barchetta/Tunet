@@ -84,21 +84,29 @@ Public Mode lets you run Tunet on wall-mounted tablets or kiosk screens without 
 | Parameter | Type | Description |
 |---|---|---|
 | `tunet_public_mode_enabled` | Boolean | Enables Public Mode. When `true`, the login screen is bypassed for new devices and the credentials below are used automatically. |
-| `tunet_public_ha_url` | String | Internal or external URL of your Home Assistant instance (e.g. `http://192.168.1.100:8123`). |
-| `tunet_public_ha_token` | Password | A Long-Lived Access Token from HA used by the public dashboard to fetch entity data and control devices. |
+| `tunet_public_ha_url` | String | *(Optional when running as HA add-on)* Internal or external URL of your Home Assistant instance (e.g. `http://192.168.1.100:8123`). If left empty, the add-on auto-detects it from the Supervisor. |
+| `tunet_public_ha_token` | Password | *(Optional when running as HA add-on)* A Long-Lived Access Token from HA. If left empty, the add-on automatically uses the Supervisor token. |
 | `tunet_public_read_only` | Boolean | Locks the dashboard layout. Users cannot move cards, add new ones, or access settings. Ideal for wall-mounted tablets. |
 
 ### Quick Start Guide
 
+**As a Home Assistant Add-on** — just flip the switch, no token required:
+```yaml
+tunet_public_mode_enabled: true
+tunet_public_read_only: true   # optional — locks layout on kiosk screens
+```
+The add-on automatically resolves the HA URL and token from the Supervisor.
+
+**As a standalone Docker container** — provide explicit credentials:
 1. **Generate a Long-Lived Access Token** in Home Assistant: go to your profile page (`/profile`) → scroll to *Long-Lived Access Tokens* → *Create Token*.
-2. **Set the parameters** in the Add-on configuration (or as environment variables when using Docker):
+2. **Set the parameters**:
    ```yaml
    tunet_public_mode_enabled: true
    tunet_public_ha_url: 'http://192.168.1.100:8123'
    tunet_public_ha_token: 'your_token_here'
-   tunet_public_read_only: true   # optional — locks layout on kiosk screens
+   tunet_public_read_only: true   # optional
    ```
-3. **Restart the Add-on** (or container) to apply the new settings.
+3. **Restart** the container to apply.
 4. **Verify** by opening the dashboard in an incognito / private window — it should load without showing the login screen.
 
 ### Troubleshooting

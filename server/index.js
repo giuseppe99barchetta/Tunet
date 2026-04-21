@@ -109,21 +109,76 @@ app.use((req, _res, next) => {
 // SECURITY: only active when TUNET_PUBLIC_MODE_ENABLED=true is set (opt-in).
 // The HA token is intentionally exposed to the browser — this is a documented tradeoff
 // for unattended kiosk devices. Do NOT enable on shared or internet-facing servers.
-app.get('/api/public-config', (_req, res) => {
+//
+// Auto-detection: when running as an HA add-on (SUPERVISOR_TOKEN present) and
+// tunet_public_ha_url / tunet_public_ha_token are not explicitly set, the supervisor
+// token is used as the HA token and the HA URL is resolved from the supervisor
+// discovery_info API, so users only need to flip tunet_public_mode_enabled: true.
+const _supervisorHaUrlCache = { value: null, fetchedAt: 0 };
+const SUPERVISOR_HA_URL_TTL_MS = 60_000;
+
+async function resolvePublicCredentials() {
+  let haUrl = (process.env.TUNET_PUBLIC_HA_URL || '').trim();
+  let haToken = (process.env.TUNET_PUBLIC_HA_TOKEN || '').trim();
+
+  // Both explicitly configured — use them directly.
+  if (haUrl && haToken) return { haUrl, haToken };
+
+  // Try supervisor auto-detection (HA add-on context).
+  const supervisorToken = (process.env.SUPERVISOR_TOKEN || '').trim();
+  if (!supervisorToken) return null;
+
+  haToken = haToken || supervisorToken;
+
+  if (!haUrl) {
+    const now = Date.now();
+    if (_supervisorHaUrlCache.value && now - _supervisorHaUrlCache.fetchedAt < SUPERVISOR_HA_URL_TTL_MS) {
+      haUrl = _supervisorHaUrlCache.value;
+    } else {
+      try {
+        const discoveryRes = await fetch('http://supervisor/core/api/discovery_info', {
+          headers: { Authorization: `Bearer ${supervisorToken}` },
+          signal: AbortSignal.timeout(5_000),
+        });
+        if (discoveryRes.ok) {
+          const discovery = await discoveryRes.json();
+          const resolved = (discovery.external_url || discovery.internal_url || discovery.base_url || '').trim().replace(/\/$/, '');
+          if (resolved) {
+            _supervisorHaUrlCache.value = resolved;
+            _supervisorHaUrlCache.fetchedAt = now;
+            haUrl = resolved;
+          }
+        }
+      } catch (err) {
+        console.warn('[PublicMode] Could not resolve HA URL from supervisor:', err.message);
+      }
+    }
+  }
+
+  if (!haUrl || !haToken) return null;
+  return { haUrl, haToken };
+}
+
+app.get('/api/public-config', async (_req, res) => {
   if (!envFlag(process.env.TUNET_PUBLIC_MODE_ENABLED)) {
     return res.status(404).json({ error: 'Not found' });
   }
 
-  const haUrl = (process.env.TUNET_PUBLIC_HA_URL || '').trim();
-  const haToken = (process.env.TUNET_PUBLIC_HA_TOKEN || '').trim();
+  let credentials;
+  try {
+    credentials = await resolvePublicCredentials();
+  } catch (err) {
+    console.error('[PublicMode] Error resolving credentials:', err);
+    return res.status(503).json({ error: 'Failed to resolve public mode credentials' });
+  }
 
-  if (!haUrl || !haToken) {
-    return res.status(503).json({ error: 'Public mode is enabled but TUNET_PUBLIC_HA_URL or TUNET_PUBLIC_HA_TOKEN is not configured' });
+  if (!credentials) {
+    return res.status(503).json({ error: 'Public mode is enabled but TUNET_PUBLIC_HA_URL or TUNET_PUBLIC_HA_TOKEN is not configured and supervisor auto-detection failed' });
   }
 
   return res.json({
-    haUrl,
-    haToken,
+    haUrl: credentials.haUrl,
+    haToken: credentials.haToken,
     readOnly: envFlag(process.env.TUNET_PUBLIC_READ_ONLY),
   });
 });
