@@ -1,8 +1,10 @@
+import { createServer } from 'http';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join, dirname, extname, basename } from 'path';
 import { fileURLToPath } from 'url';
+import { WebSocket as NodeWebSocket, WebSocketServer } from 'ws';
 import profilesRouter from './routes/profiles.js';
 import iconsRouter from './routes/icons.js';
 import settingsRouter from './routes/settings.js';
@@ -104,81 +106,71 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Public Dashboard Mode config
-// Returns HA credentials for kiosk/wall-tablet deployments when public mode is explicitly enabled.
-// SECURITY: only active when TUNET_PUBLIC_MODE_ENABLED=true is set (opt-in).
-// The HA token is intentionally exposed to the browser — this is a documented tradeoff
-// for unattended kiosk devices. Do NOT enable on shared or internet-facing servers.
+// ── Public Dashboard Mode ──────────────────────────────────────────────────
+// When TUNET_PUBLIC_MODE_ENABLED=true the login screen is bypassed.
 //
-// Auto-detection: when running as an HA add-on (SUPERVISOR_TOKEN present) and
-// tunet_public_ha_url / tunet_public_ha_token are not explicitly set, the supervisor
-// token is used as the HA token and the HA URL is resolved from the supervisor
-// discovery_info API, so users only need to flip tunet_public_mode_enabled: true.
-const _supervisorHaUrlCache = { value: null, fetchedAt: 0 };
-const SUPERVISOR_HA_URL_TTL_MS = 60_000;
+// Two modes:
+//   1. Explicit:  TUNET_PUBLIC_HA_URL + TUNET_PUBLIC_HA_TOKEN are set.
+//      Frontend connects directly to HA with those credentials.
+//
+//   2. Proxy (HA add-on):  only SUPERVISOR_TOKEN is available (no explicit URL/token).
+//      The server exposes a transparent WebSocket proxy at /api/websocket that
+//      forwards to ws://homeassistant:8123/api/websocket using the supervisor token.
+//      /api/public-config returns the Tunet server's own origin as haUrl so the
+//      frontend WebSocket connects through the proxy — no manual config needed.
+//
+// SECURITY: opt-in only; the supervisor token is intentionally sent to the browser
+// as a documented trade-off for unattended kiosk/wall-tablet devices.
 
-async function resolvePublicCredentials() {
-  let haUrl = (process.env.TUNET_PUBLIC_HA_URL || '').trim();
-  let haToken = (process.env.TUNET_PUBLIC_HA_TOKEN || '').trim();
-
-  // Both explicitly configured — use them directly.
-  if (haUrl && haToken) return { haUrl, haToken };
-
-  // Try supervisor auto-detection (HA add-on context).
-  const supervisorToken = (process.env.SUPERVISOR_TOKEN || '').trim();
-  if (!supervisorToken) return null;
-
-  haToken = haToken || supervisorToken;
-
-  if (!haUrl) {
-    const now = Date.now();
-    if (_supervisorHaUrlCache.value && now - _supervisorHaUrlCache.fetchedAt < SUPERVISOR_HA_URL_TTL_MS) {
-      haUrl = _supervisorHaUrlCache.value;
-    } else {
-      try {
-        const discoveryRes = await fetch('http://supervisor/core/api/discovery_info', {
-          headers: { Authorization: `Bearer ${supervisorToken}` },
-          signal: AbortSignal.timeout(5_000),
-        });
-        if (discoveryRes.ok) {
-          const discovery = await discoveryRes.json();
-          const resolved = (discovery.external_url || discovery.internal_url || discovery.base_url || '').trim().replace(/\/$/, '');
-          if (resolved) {
-            _supervisorHaUrlCache.value = resolved;
-            _supervisorHaUrlCache.fetchedAt = now;
-            haUrl = resolved;
-          }
-        }
-      } catch (err) {
-        console.warn('[PublicMode] Could not resolve HA URL from supervisor:', err.message);
-      }
-    }
-  }
-
-  if (!haUrl || !haToken) return null;
-  return { haUrl, haToken };
+/**
+ * Derive the browser-reachable base URL of this Tunet server from request
+ * headers.  Works both through HA Ingress and with direct port access.
+ */
+function buildTunetProxyUrl(req) {
+  const ingressPath = req.headers['x-ingress-path'];
+  const proto = req.headers['x-forwarded-proto'] || (req.socket?.encrypted ? 'https' : 'http');
+  const host = req.headers['x-forwarded-host'] || req.headers['host'] || '';
+  if (!host) return null;
+  const base = `${proto}://${host}`;
+  return ingressPath ? `${base}${ingressPath.replace(/\/$/, '')}` : base;
 }
 
-app.get('/api/public-config', async (_req, res) => {
+app.get('/api/public-config', (req, res) => {
   if (!envFlag(process.env.TUNET_PUBLIC_MODE_ENABLED)) {
     return res.status(404).json({ error: 'Not found' });
   }
 
-  let credentials;
-  try {
-    credentials = await resolvePublicCredentials();
-  } catch (err) {
-    console.error('[PublicMode] Error resolving credentials:', err);
-    return res.status(503).json({ error: 'Failed to resolve public mode credentials' });
+  const haUrl = (process.env.TUNET_PUBLIC_HA_URL || '').trim();
+  const haToken = (process.env.TUNET_PUBLIC_HA_TOKEN || '').trim();
+
+  // Mode 1 — explicit credentials configured.
+  if (haUrl && haToken) {
+    return res.json({
+      haUrl,
+      haToken,
+      readOnly: envFlag(process.env.TUNET_PUBLIC_READ_ONLY),
+    });
   }
 
-  if (!credentials) {
-    return res.status(503).json({ error: 'Public mode is enabled but TUNET_PUBLIC_HA_URL or TUNET_PUBLIC_HA_TOKEN is not configured and supervisor auto-detection failed' });
+  // Mode 2 — proxy mode via supervisor token (HA add-on context).
+  const supervisorToken = (process.env.SUPERVISOR_TOKEN || '').trim();
+  if (!supervisorToken) {
+    return res.status(503).json({
+      error:
+        'Public mode is enabled but no credentials are configured. ' +
+        'Set tunet_public_ha_url + tunet_public_ha_token, or run as an HA add-on (SUPERVISOR_TOKEN).',
+    });
   }
 
+  const proxyUrl = buildTunetProxyUrl(req);
+  if (!proxyUrl) {
+    return res.status(503).json({ error: 'Could not determine proxy URL from request headers.' });
+  }
+
+  console.log(`[PublicMode] Proxy mode — returning haUrl=${proxyUrl}`);
   return res.json({
-    haUrl: credentials.haUrl,
-    haToken: credentials.haToken,
+    haUrl: proxyUrl,
+    haToken: haToken || supervisorToken,
     readOnly: envFlag(process.env.TUNET_PUBLIC_READ_ONLY),
   });
 });
@@ -299,7 +291,61 @@ if (isProduction) {
   }
 }
 
-app.listen(PORT, '0.0.0.0', () => {
+// ── WebSocket proxy for Public Mode (HA add-on / proxy context) ───────────
+// Transparently forwards WebSocket connections to ws://homeassistant:8123/api/websocket
+// using the supervisor token.  Only active when TUNET_PUBLIC_MODE_ENABLED=true
+// and SUPERVISOR_TOKEN is set.  The HA Ingress URL rewriting is applied here too.
+const httpServer = createServer(app);
+const wsProxyServer = new WebSocketServer({ noServer: true });
+
+wsProxyServer.on('connection', (clientWs) => {
+  const targetWs = new NodeWebSocket('ws://homeassistant:8123/api/websocket');
+
+  const forwardToTarget = (data, isBinary) => {
+    if (targetWs.readyState === NodeWebSocket.OPEN) targetWs.send(data, { binary: isBinary });
+  };
+  const forwardToClient = (data, isBinary) => {
+    if (clientWs.readyState === NodeWebSocket.OPEN) clientWs.send(data, { binary: isBinary });
+  };
+
+  targetWs.on('message', forwardToClient);
+  clientWs.on('message', forwardToTarget);
+
+  clientWs.on('close', () => { try { targetWs.close(); } catch { /* ignore */ } });
+  targetWs.on('close', () => {
+    if (clientWs.readyState !== NodeWebSocket.CLOSED) try { clientWs.close(); } catch { /* ignore */ }
+  });
+
+  targetWs.on('error', (err) => {
+    console.error('[PublicMode WS Proxy] Target error:', err.message);
+    try { clientWs.close(1011, 'Proxy target error'); } catch { /* ignore */ }
+  });
+  clientWs.on('error', (err) => {
+    console.error('[PublicMode WS Proxy] Client error:', err.message);
+    try { targetWs.close(); } catch { /* ignore */ }
+  });
+});
+
+httpServer.on('upgrade', (req, socket, head) => {
+  // Only active in supervisor proxy mode
+  if (!envFlag(process.env.TUNET_PUBLIC_MODE_ENABLED)) { socket.destroy(); return; }
+  const supervisorToken = (process.env.SUPERVISOR_TOKEN || '').trim();
+  if (!supervisorToken) { socket.destroy(); return; }
+
+  // Apply ingress path rewriting (mirrors the middleware above)
+  let url = req.url || '/';
+  const ingressPath = req.headers['x-ingress-path'];
+  if (ingressPath && url.startsWith(ingressPath)) {
+    url = url.slice(ingressPath.length) || '/';
+  }
+
+  if (!url.startsWith('/api/websocket')) { socket.destroy(); return; }
+
+  console.log('[PublicMode WS Proxy] Accepting upgrade, forwarding to homeassistant:8123');
+  wsProxyServer.handleUpgrade(req, socket, head, (ws) => wsProxyServer.emit('connection', ws, req));
+});
+
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('Trust Proxy enabled for Home Assistant Ingress support.');
   console.log(
     `[server] Tunet backend running on 0.0.0.0:${PORT} (${isProduction ? 'production' : 'development'})`
