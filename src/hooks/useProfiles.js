@@ -130,6 +130,9 @@ export function useProfiles({ haUser, contextSetters, isPublicMode = false, isRe
   // Tracks the ID of the profile served by /api/public-profiles/default so
   // write-back (non-read-only public mode) can target the correct row.
   const publicProfileIdRef = useRef(null);
+  // JSON string of the last snapshot written to the public profile.
+  // Used by the auto-save loop to skip unnecessary writes.
+  const lastSavedSnapshotRef = useRef(null);
   const isPublicModeRef = useRef(isPublicMode);
   isPublicModeRef.current = isPublicMode;
   const isReadOnlyRef = useRef(isReadOnly);
@@ -251,6 +254,9 @@ export function useProfiles({ haUser, contextSetters, isPublicMode = false, isRe
         return [profile, ...prev];
       });
       loadProfile(profile);
+      // Seed the auto-save baseline so it doesn't immediately re-write the
+      // just-loaded state back to the server.
+      lastSavedSnapshotRef.current = JSON.stringify(collectSnapshot());
       setBackendAvailable(true);
       return true;
     } catch (err) {
@@ -308,6 +314,27 @@ export function useProfiles({ haUser, contextSetters, isPublicMode = false, isRe
   useEffect(() => {
     refreshProfiles();
   }, [refreshProfiles]);
+
+  // ── Auto-save for public writable mode ───────────────────────────────────
+  // Runs a periodic diff every 4 s: if localStorage changed since the last
+  // write-back, push the new snapshot to the public profile so every other
+  // device picks it up on their next poll.
+  useEffect(() => {
+    if (!isPublicMode || isReadOnly) return;
+    // Wait until the initial profile fetch has completed before comparing.
+    if (!publicProfileAttempted) return;
+
+    const id = setInterval(() => {
+      const snapshot = collectSnapshot();
+      if (!isValidSnapshot(snapshot)) return;
+      const json = JSON.stringify(snapshot);
+      if (json === lastSavedSnapshotRef.current) return;
+      lastSavedSnapshotRef.current = json;
+      overwritePublicProfile();
+    }, 4000);
+
+    return () => clearInterval(id);
+  }, [isPublicMode, isReadOnly, publicProfileAttempted, overwritePublicProfile]);
 
   const importDashboard = useCallback((snapshotCandidate) => {
     setError(null);

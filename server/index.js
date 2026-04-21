@@ -301,6 +301,10 @@ const wsProxyServer = new WebSocketServer({ noServer: true });
 wsProxyServer.on('connection', (clientWs) => {
   const targetWs = new NodeWebSocket('ws://homeassistant:8123/api/websocket');
 
+  targetWs.on('open', () => {
+    console.log('[PublicMode WS Proxy] Connected to homeassistant:8123 ✓');
+  });
+
   const forwardToTarget = (data, isBinary) => {
     if (targetWs.readyState === NodeWebSocket.OPEN) targetWs.send(data, { binary: isBinary });
   };
@@ -317,7 +321,7 @@ wsProxyServer.on('connection', (clientWs) => {
   });
 
   targetWs.on('error', (err) => {
-    console.error('[PublicMode WS Proxy] Target error:', err.message);
+    console.error('[PublicMode WS Proxy] Target error:', err.message, err.code || '');
     try { clientWs.close(1011, 'Proxy target error'); } catch { /* ignore */ }
   });
   clientWs.on('error', (err) => {
