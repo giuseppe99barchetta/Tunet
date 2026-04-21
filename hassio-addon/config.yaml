@@ -1,6 +1,6 @@
 name: 'Tunet'
 description: 'A modern, responsive dashboard for Home Assistant'
-version: "1.15.58"
+version: "1.15.59"
 slug: 'tunet'
 url: 'https://github.com/giuseppe99barchetta/Tunet'
 init: false
